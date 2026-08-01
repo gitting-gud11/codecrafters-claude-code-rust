@@ -12,6 +12,8 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+
     let args = Args::parse();
 
     let base_url = env::var("OPENROUTER_BASE_URL")
@@ -28,6 +30,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = Client::with_config(config);
 
+    let model=env::var("LOCAL_MODEL").unwrap_or("anthropic/claude-haiku-4.5".to_string());
+
     #[allow(unused_variables)]
     let response: Value = client
         .chat()
@@ -38,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "content": args.prompt
                 }
             ],
-            "model": "anthropic/claude-haiku-4.5",
+            "model": model,
         }))
         .await?;
 
@@ -46,9 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("Logs from your program will appear here!");
 
     // TODO: Uncomment the lines below to pass the first stage
-    // if let Some(content) = response["choices"][0]["message"]["content"].as_str() {
-    //     println!("{}", content);
-    // }
+    if let Some(content) = response["choices"][0]["message"]["content"].as_str() {
+        println!("{}", content);
+    }
 
     Ok(())
 }
