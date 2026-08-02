@@ -32,19 +32,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let model = env::var("LOCAL_MODEL").unwrap_or("anthropic/claude-haiku-4.5".to_string());
 
-    #[allow(unused_variables)]
-    let response: Value = client
-        .chat()
-        .create_byot(json!({
-            "messages": [
-                {
-                    "role": "user",
-                    "content": args.prompt
-                }
-            ],
-            "model": model,
-            "tools": [
-                {
+    let read_tool = json!(
+                        {
                     "type":"function",
                     "function":{
                         "name":"Read",
@@ -61,12 +50,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 }
-            ]
+    );
+
+    #[allow(unused_variables)]
+    let response: Value = client
+        .chat()
+        .create_byot(json!({
+            "messages": [
+                {
+                    "role": "user",
+                    "content": args.prompt
+                }
+            ],
+            "model": model,
+            "tools": [read_tool]
         }))
         .await?;
-
-    // You can use print statements as follows for debugging, they'll be visible when running tests.
-    eprintln!("Logs from your program will appear here!");
 
     if let Some(content) = response["choices"][0]["message"]["content"].as_str() {
         println!("{}", content);
