@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = Client::with_config(config);
 
-    let model=env::var("LOCAL_MODEL").unwrap_or("anthropic/claude-haiku-4.5".to_string());
+    let model = env::var("LOCAL_MODEL").unwrap_or("anthropic/claude-haiku-4.5".to_string());
 
     #[allow(unused_variables)]
     let response: Value = client
@@ -43,17 +43,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             ],
             "model": model,
+            "tools": [
+                {
+                    "type":"function",
+                    "function":{
+                        "name":"Read",
+                        "description": "Read and return the contents of a file",
+                        "parameters":{
+                            "type": "object",
+                            "properties": {
+                                "file_path": {
+                                    "type":"string",
+                                    "description": "The path to the file to read"
+                                }
+                            },
+                            "required":["file_path"]
+                        }
+                    }
+                }
+            ]
         }))
         .await?;
 
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     eprintln!("Logs from your program will appear here!");
 
-    // TODO: Uncomment the lines below to pass the first stage
     if let Some(content) = response["choices"][0]["message"]["content"].as_str() {
         println!("{}", content);
     }
-    //test
 
     Ok(())
 }
