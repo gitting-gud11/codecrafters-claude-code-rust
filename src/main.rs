@@ -68,56 +68,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }))
         .await?;
 
-    let tool_calls_json = response["choices"][0]["message"]["tool_calls"].as_array();
-
-    #[allow(unused_variables)]
-    match tool_calls_json {
-        Option::Some(tool_calls) => {
-            let first_call = &tool_calls[0];
-            let call_id = &first_call["id"];
-            let call_type = &first_call["type"];
-            assert_eq!(call_type, "function");
-            let function_name = &first_call["function"]["name"];
-            let arguments_json_str=first_call["function"]["arguments"].as_str().unwrap_or_default();
-            let arguments_res=serde_json::from_str::<serde_json::Map<String,Value>>(arguments_json_str);
-
-            // if(arguments_res.is_err()){
-            //     eprintln!("{}",arguments_res.unwrap_err());
-            //     return Ok(()); //this is a temporary place holder
-            // }
-            if let Some(error_occurred) = arguments_res.as_ref().err(){
-                eprintln!("{}",error_occurred);
-                return Ok(()); //temp place holder
-            }
-            // let file_path_opt=arguments["file_path"].as_str()
-            // let arguments : serde_json::Map<String,serde_json::Value>= serde_json::from_str(first_call["function"]["arguments"].as_str().unwrap_or_default());
-            // let arguments = json!(
-            //     first_call["function"]["arguments"]
-            //         .as_str()
-            //         .unwrap_or_default()
-            // );
-            // println!("arguments json:{}",arguments.as_str().unwrap_or_default());
-            // let m=arguments_res.ok()
-            let argument=arguments_res.unwrap();
-            let file_path_opt=argument["file_path"].as_str();
-            // let file_path_opt = arguments_res.unwrap()["file_path"].as_str();
-
-            match file_path_opt {
-                Option::Some(path) => {
-                    //Need to condense this into helper functions
-                    match fs::read_to_string(path) {
-                        Ok(message) => println!("{}", message),
-                        Err(e) => eprintln!("{}", e),
-                    }
-                }
-                Option::None => eprintln!("File path not provided"),
-            }
+    if let Some(tool_calls) = response["choices"][0]["message"]["tool_calls"].as_array() {
+        let first_call = &tool_calls[0];
+        let call_type = &first_call["type"];
+        assert_eq!(call_type.as_str(), Some("function"));
+        let name = first_call["function"]["name"]
+            .as_str()
+            .expect("Function name must be provided for a tool call");
+        if name == "Read" {
+            let arguments = serde_json::from_str::<serde_json::Value>(
+                first_call["function"]["arguments"].as_str().unwrap(),
+            )?;
+            let message = fs::read_to_string(arguments["file_path"].as_str().unwrap())?;
+            println!("{}", message);
         }
-        Option::None => {
-            if let Some(content) = response["choices"][0]["message"]["content"].as_str() {
-                println!("{}", content);
-            }
-        }
+    } else if let Some(content) = response["choices"][0]["message"]["content"].as_str() {
+        println!("{}", content);
     }
 
     Ok(())
