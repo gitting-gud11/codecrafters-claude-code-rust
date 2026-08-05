@@ -53,38 +53,78 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
     );
 
-    #[allow(unused_variables)]
-    let response: Value = client
-        .chat()
-        .create_byot(json!({
-            "messages": [
-                {
-                    "role": "user",
-                    "content": args.prompt
-                }
-            ],
-            "model": model,
-            "tools": [read_tool]
-        }))
-        .await?;
+    let mut messages = vec![json!({
+        "role" : "user",
+        "content" : args.prompt
+    })];
 
-    if let Some(tool_calls) = response["choices"][0]["message"]["tool_calls"].as_array() {
-        let first_call = &tool_calls[0];
-        let call_type = &first_call["type"];
-        assert_eq!(call_type.as_str(), Some("function"));
-        let name = first_call["function"]["name"]
-            .as_str()
-            .expect("Function name must be provided for a tool call");
-        if name == "Read" {
-            let arguments = serde_json::from_str::<serde_json::Value>(
-                first_call["function"]["arguments"].as_str().unwrap(),
-            )?;
-            let message = fs::read_to_string(arguments["file_path"].as_str().unwrap())?;
-            println!("{}", message);
+    loop {
+        let response: Value = client
+            .chat()
+            .create_byot(json!({
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": args.prompt
+                    }
+                ],
+                "model": model,
+                "tools": [read_tool]
+            }))
+            .await?;
+
+        let received_message = &response["choices"][0]["message"];
+        messages.push(received_message.clone());
+
+        if let Some(tool_calls) = received_message["tool_calls"].as_array()
+            && (!tool_calls.is_empty())
+        {
+            for tool_call in tool_calls {
+                let result = execute_tool_call(tool_call)?;
+
+                if !result.is_null() {
+                    messages.push(result);
+                }
+            }
+        } else {
+            print_content(received_message);
+            break;
         }
-    } else if let Some(content) = response["choices"][0]["message"]["content"].as_str() {
-        println!("{}", content);
     }
 
     Ok(())
 }
+
+fn execute_tool_call(
+    tool_call: &serde_json::Value,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    //Only execute supported tools
+    let id = tool_call["id"]
+        .as_str()
+        .expect("Tool call must have an id")
+        .to_string();
+    let name = tool_call["function"]["name"]
+        .as_str()
+        .expect("Tool function call must have a provided name");
+
+    if name == "Read" {
+        let arguments: Value =
+            serde_json::from_str(tool_call["function"]["name"].as_str().unwrap())?;
+        let content = fs::read_to_string(arguments["file_path"].as_str().unwrap())?;
+        let result = json!({
+            "role": "tool",
+            "tool_call_id": id,
+            "content" : content
+        });
+        Ok(result)
+    } else {
+        Ok(serde_json::Value::Null)
+    }
+}
+
+fn print_content(received_message: &serde_json::Value) {
+    if let Some(content) = received_message["content"].as_str() {
+        println!("{}", content);
+    }
+}
+
