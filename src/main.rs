@@ -58,7 +58,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "content" : args.prompt
     })];
     loop {
-        // println!("At the beginning of the loop");
         let response: Value = client
             .chat()
             .create_byot(json!({
@@ -70,22 +69,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let received_message = &response["choices"][0]["message"];
         messages.push(received_message.clone());
-        // println!("Messages size:{}",messages.len());
-        // println!("{}",serde_json::to_string_pretty(&messages).unwrap());
-        // println!(
-        //     "Last_message: {}",
-        //     serde_json::to_string_pretty(&messages.last()).unwrap()
-        // );
+
         if let Some(tool_calls) = received_message["tool_calls"].as_array()
             && (!tool_calls.is_empty())
         {
             for tool_call in tool_calls {
                 let result = execute_tool_call(tool_call)?;
                 if !result.is_null() {
-                    // println!(
-                    //     "Got a result: {}",
-                    //     serde_json::to_string_pretty(received_message).unwrap()
-                    // );
                     messages.push(result);
                 }
             }
