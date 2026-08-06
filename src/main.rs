@@ -57,17 +57,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "role" : "user",
         "content" : args.prompt
     })];
-
     loop {
+        // println!("At the beginning of the loop");
         let response: Value = client
             .chat()
             .create_byot(json!({
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": args.prompt
-                    }
-                ],
+                "messages": messages, //Should be good from what I see on codecrafters forum
                 "model": model,
                 "tools": [read_tool]
             }))
@@ -75,14 +70,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let received_message = &response["choices"][0]["message"];
         messages.push(received_message.clone());
-
+        // println!("Messages size:{}",messages.len());
+        // println!("{}",serde_json::to_string_pretty(&messages).unwrap());
+        // println!(
+        //     "Last_message: {}",
+        //     serde_json::to_string_pretty(&messages.last()).unwrap()
+        // );
         if let Some(tool_calls) = received_message["tool_calls"].as_array()
             && (!tool_calls.is_empty())
         {
             for tool_call in tool_calls {
                 let result = execute_tool_call(tool_call)?;
-
                 if !result.is_null() {
+                    // println!(
+                    //     "Got a result: {}",
+                    //     serde_json::to_string_pretty(received_message).unwrap()
+                    // );
                     messages.push(result);
                 }
             }
@@ -108,8 +111,9 @@ fn execute_tool_call(
         .expect("Tool function call must have a provided name");
 
     if name == "Read" {
-        let arguments: Value =
-            serde_json::from_str(tool_call["function"]["name"].as_str().unwrap())?;
+        let arguments: serde_json::Value =
+            serde_json::from_str(tool_call["function"]["arguments"].as_str().unwrap())?;
+
         let content = fs::read_to_string(arguments["file_path"].as_str().unwrap())?;
         let result = json!({
             "role": "tool",
@@ -127,4 +131,3 @@ fn print_content(received_message: &serde_json::Value) {
         println!("{}", content);
     }
 }
-
