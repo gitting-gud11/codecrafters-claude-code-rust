@@ -53,6 +53,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
     );
 
+    let write_tool = json!(
+            {
+      "type": "function",
+      "function": {
+        "name": "Write",
+        "description": "Write content to a file",
+        "parameters": {
+          "type": "object",
+          "required": ["file_path", "content"],
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "description": "The path of the file to write to"
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to the file"
+            }
+          }
+        }
+      }
+    }
+
+        );
+
+    let bash_tool = json!(
+            {
+      "type": "function",
+      "function": {
+        "name": "Bash",
+        "description": "Execute a shell command",
+        "parameters": {
+          "type": "object",
+          "required": ["command"],
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The command to execute"
+            }
+          }
+        }
+      }
+    }
+        );
+
     let mut messages = vec![json!({
         "role" : "user",
         "content" : args.prompt
@@ -61,9 +106,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let response: Value = client
             .chat()
             .create_byot(json!({
-                "messages": messages, //Should be good from what I see on codecrafters forum
+                "messages": messages,
                 "model": model,
-                "tools": [read_tool]
+                "tools": [read_tool,write_tool,bash_tool]
             }))
             .await?;
 
@@ -100,10 +145,10 @@ fn execute_tool_call(
         .as_str()
         .expect("Tool function call must have a provided name");
 
-    if name == "Read" {
-        let arguments: serde_json::Value =
-            serde_json::from_str(tool_call["function"]["arguments"].as_str().unwrap())?;
+    let arguments: serde_json::Value =
+        serde_json::from_str(tool_call["function"]["arguments"].as_str().unwrap())?;
 
+    if name == "Read" {
         let content = fs::read_to_string(arguments["file_path"].as_str().unwrap())?;
         let result = json!({
             "role": "tool",
@@ -111,6 +156,19 @@ fn execute_tool_call(
             "content" : content
         });
         Ok(result)
+    } else if name == "Write" {
+        fs::write(
+            arguments["file_path"].as_str().unwrap(),
+            arguments["content"].as_str().unwrap(),
+        )?;
+        let result = json!({
+            "role": "tool",
+            "tool_call_id" : id,
+            "content" : (arguments["content"].as_str().expect("Write to file path succeeded").to_string())
+        });
+        Ok(result)
+    } else if name == "Bash" {
+        todo!();
     } else {
         Ok(serde_json::Value::Null)
     }
