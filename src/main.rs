@@ -168,7 +168,28 @@ fn execute_tool_call(
         });
         Ok(result)
     } else if name == "Bash" {
-        todo!();
+        let command = arguments["command"]
+            .as_str()
+            .expect("Command is provided for Bash tool");
+        let current_directory = fs::canonicalize(env::current_dir()?)?;
+        let output = process::Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .current_dir(current_directory)
+            .output()?;
+
+        let content = if output.status.success() {
+            String::from_utf8(output.stdout)?
+        } else {
+            String::from_utf8(output.stderr)?
+        };
+
+        let result = json!({
+            "role": "tool",
+            "tool_call_id": id,
+            "content": content
+        });
+        Ok(result)
     } else {
         Ok(serde_json::Value::Null)
     }
